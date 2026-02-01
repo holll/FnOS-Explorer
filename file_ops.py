@@ -36,8 +36,13 @@ def get_remote_content(base_url, path):
         soup = BeautifulSoup(resp.text, 'html.parser')
         items = []
 
-        # 检查当前路径是否在 webdav 目录下
-        is_webdav_path = '/webdav/' in path.lower() or path.lower().endswith('/webdav')
+        # 检查当前路径是否正好是 webdav 目录本身
+        # 例如：/share/home/1000/webdav 或 /share/home/1000/webdav/
+        # 但不包括：/share/home/1000/webdav/subdir
+        is_webdav_root = False
+        path_lower = path.lower().rstrip('/')
+        if path_lower.endswith('/webdav'):
+            is_webdav_root = True
 
         for a in soup.find_all('a'):
             href = a.get('href')
@@ -53,8 +58,8 @@ def get_remote_content(base_url, path):
             if href.endswith('/') or text.endswith('/'):
                 # 明确以 / 结尾，是目录
                 is_dir = True
-            elif is_webdav_path:
-                # 在 webdav 目录下，检查是否有明确的文件扩展名
+            elif is_webdav_root:
+                # 只在 webdav 目录本身，检查是否有明确的文件扩展名
                 name_part = href.split('/')[-1]
                 if '.' in name_part:
                     # 有点号，检查扩展名
@@ -75,10 +80,10 @@ def get_remote_content(base_url, path):
                         # 不常见的扩展名或者点号在开头（如 .config），认为是目录
                         is_dir = True
                 else:
-                    # webdav 下没有扩展名，认为是目录
+                    # webdav 目录下没有扩展名，认为是目录
                     is_dir = True
             else:
-                # 非 webdav 路径，保持原有逻辑：只有以 / 结尾才是目录
+                # 非 webdav 根目录，保持原有逻辑：只有以 / 结尾才是目录
                 is_dir = False
 
             items.append({
