@@ -1,8 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file, Response, jsonify
 from database import init_db, get_all_targets, get_target_by_id, get_targets_paginated, get_status_counts
 from scanner import process_csv, import_all_csv_files, scan_pending_targets
-from file_ops import get_remote_content, recursive_zip_download
-import io
+from file_ops import get_remote_content, recursive_zip_download, build_remote_url
 
 app = Flask(__name__)
 
@@ -130,28 +129,9 @@ def explore(target_id):
     data = get_remote_content(base_url, current_path)
 
     if data['type'] == 'file':
-        # 如果是文件，判断是预览还是下载
-        action = request.args.get('action', 'view')
-
-        # 获取文件名
-        filename = current_path.split('/')[-1]
-        
-        # 下载时添加 ID 前缀
-        if action == 'download':
-            download_filename = f"{target_id}_{filename}"
-            return send_file(
-                io.BytesIO(data['content']),
-                mimetype='application/octet-stream',
-                as_attachment=True,
-                download_name=download_filename
-            )
-        
-        # 预览模式
-        mimetype = data['mimetype']
-        if not mimetype:
-            mimetype = 'application/octet-stream'
-        
-        return send_file(io.BytesIO(data['content']), mimetype=mimetype)
+        # 文件预览和下载不再代理，直接 302 跳转到远端 URL
+        target_url = build_remote_url(base_url, current_path)
+        return redirect(target_url, code=302)
 
     elif data['type'] == 'directory':
         # 计算面包屑导航
