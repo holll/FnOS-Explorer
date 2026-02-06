@@ -17,10 +17,20 @@ def init_db():
             country TEXT,          -- 国家代码，如 CN, US
             region TEXT,           -- 省份/州，如 广东省, California
             city TEXT,             -- 城市，如 Dongguan, Brea
-            status TEXT,           -- 'Vulnerable', 'Safe', 'Pending', 'Error'
-            root_content TEXT      -- 根目录的 HTML 响应快照
+            status TEXT,           -- 'Vulnerable', 'Safe', 'Pending', 'Error', 'Archived'
+            root_content TEXT,     -- 根目录的 HTML 响应快照
+            note TEXT DEFAULT '',  -- 备注
+            favorite INTEGER DEFAULT 0  -- 是否收藏：0否/1是
         )
     ''')
+
+    # 兼容旧库：补充 note/favorite 字段
+    cursor.execute("PRAGMA table_info(targets)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if 'note' not in columns:
+        cursor.execute("ALTER TABLE targets ADD COLUMN note TEXT DEFAULT ''")
+    if 'favorite' not in columns:
+        cursor.execute("ALTER TABLE targets ADD COLUMN favorite INTEGER DEFAULT 0")
     conn.commit()
     conn.close()
 
@@ -80,6 +90,49 @@ def update_target_status(target_id, status, root_content):
     finally:
         conn.close()
 
+
+def update_target_status_only(target_id, status):
+    """仅更新目标状态"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE targets SET status = ? WHERE id = ?
+        ''', (status, target_id))
+        conn.commit()
+    except Exception as e:
+        print(f"DB Update Status Error: {e}")
+    finally:
+        conn.close()
+
+
+def update_target_note(target_id, note):
+    """更新目标备注"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE targets SET note = ? WHERE id = ?
+        ''', (note, target_id))
+        conn.commit()
+    except Exception as e:
+        print(f"DB Update Note Error: {e}")
+    finally:
+        conn.close()
+
+
+def update_target_favorite(target_id, favorite):
+    """更新目标收藏状态"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE targets SET favorite = ? WHERE id = ?", (1 if favorite else 0, target_id))
+        conn.commit()
+    except Exception as e:
+        print(f"DB Update Favorite Error: {e}")
+    finally:
+        conn.close()
+
 def get_all_targets():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -100,8 +153,11 @@ def get_targets_paginated(page=1, per_page=50, status_filter=None, search_query=
     params = []
     
     if status_filter and status_filter != 'all':
-        conditions.append("status = ?")
-        params.append(status_filter)
+        if status_filter == 'Favorite':
+            conditions.append("favorite = 1")
+        else:
+            conditions.append("status = ?")
+            params.append(status_filter)
     
     if search_query:
         conditions.append("(ip LIKE ? OR host LIKE ? OR base_url LIKE ? OR city LIKE ?)")
@@ -140,13 +196,17 @@ def get_status_counts():
         GROUP BY status
     """)
     rows = cursor.fetchall()
-    conn.close()
-    
-    counts = {'all': 0}
+
+    counts = {'all': 0, 'favorite': 0}
     for row in rows:
         counts[row[0]] = row[1]
         counts['all'] += row[1]
-    
+
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM targets WHERE favorite = 1")
+    counts['favorite'] = cursor.fetchone()[0]
+
+    conn.close()
     return counts
 
 def get_target_by_id(tid):

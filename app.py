@@ -1,8 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file, Response, jsonify
-from database import init_db, get_all_targets, get_target_by_id, get_targets_paginated, get_status_counts
+from database import init_db, get_all_targets, get_target_by_id, get_targets_paginated, get_status_counts, update_target_note, update_target_status_only, update_target_favorite
 from scanner import process_csv, import_all_csv_files, scan_pending_targets
-from file_ops import get_remote_content, recursive_zip_download
-import io
+from file_ops import get_remote_content, recursive_zip_download, build_remote_url
 
 app = Flask(__name__)
 
@@ -45,6 +44,7 @@ def get_file_icon(filename):
 # 注册为模板函数
 app.jinja_env.globals.update(get_flag_emoji=get_flag_emoji)
 app.jinja_env.globals.update(get_file_icon=get_file_icon)
+app.jinja_env.globals.update(build_remote_url=build_remote_url)
 
 
 @app.route('/')
@@ -116,6 +116,55 @@ def get_stats():
     return jsonify(status_counts)
 
 
+@app.route('/targets/<int:target_id>/note', methods=['POST'])
+def update_note_route(target_id):
+    """更新站点备注"""
+    note = request.form.get('note', '').strip()
+    if len(note) > 500:
+        note = note[:500]
+    update_target_note(target_id, note)
+
+    # 保持当前筛选分页参数
+    page = request.form.get('page', '1')
+    status = request.form.get('status', 'Vulnerable')
+    search = request.form.get('search', '')
+    return redirect(url_for('index', page=page, status=status, search=search))
+
+
+@app.route('/targets/<int:target_id>/archive', methods=['POST'])
+def archive_target_route(target_id):
+    """归档站点（状态更新为 Archived）"""
+    update_target_status_only(target_id, 'Archived')
+
+    page = request.form.get('page', '1')
+    status = request.form.get('status', 'Vulnerable')
+    search = request.form.get('search', '')
+    return redirect(url_for('index', page=page, status=status, search=search))
+
+
+@app.route('/targets/<int:target_id>/unarchive', methods=['POST'])
+def unarchive_target_route(target_id):
+    """取消归档，状态改为待检查"""
+    update_target_status_only(target_id, 'Pending')
+
+    page = request.form.get('page', '1')
+    status = request.form.get('status', 'Vulnerable')
+    search = request.form.get('search', '')
+    return redirect(url_for('index', page=page, status=status, search=search))
+
+
+@app.route('/targets/<int:target_id>/favorite', methods=['POST'])
+def favorite_target_route(target_id):
+    """更新收藏状态"""
+    favorite = request.form.get('favorite', '0') == '1'
+    update_target_favorite(target_id, favorite)
+
+    page = request.form.get('page', '1')
+    status = request.form.get('status', 'Vulnerable')
+    search = request.form.get('search', '')
+    return redirect(url_for('index', page=page, status=status, search=search))
+
+
 @app.route('/explore/<int:target_id>')
 def explore(target_id):
     """文件浏览主视图"""
@@ -127,31 +176,18 @@ def explore(target_id):
     current_path = request.args.get('path', '/')
     base_url = target['base_url']
 
+    # 对文件查看/下载请求直接 302，避免先探测远端内容导致额外等待
+    action = request.args.get('action')
+    if action in ('view', 'download'):
+        target_url = build_remote_url(base_url, current_path)
+        return redirect(target_url, code=302)
+
     data = get_remote_content(base_url, current_path)
 
     if data['type'] == 'file':
-        # 如果是文件，判断是预览还是下载
-        action = request.args.get('action', 'view')
-
-        # 获取文件名
-        filename = current_path.split('/')[-1]
-        
-        # 下载时添加 ID 前缀
-        if action == 'download':
-            download_filename = f"{target_id}_{filename}"
-            return send_file(
-                io.BytesIO(data['content']),
-                mimetype='application/octet-stream',
-                as_attachment=True,
-                download_name=download_filename
-            )
-        
-        # 预览模式
-        mimetype = data['mimetype']
-        if not mimetype:
-            mimetype = 'application/octet-stream'
-        
-        return send_file(io.BytesIO(data['content']), mimetype=mimetype)
+        # 兜底：如果直接访问到文件，也执行 302 跳转
+        target_url = build_remote_url(base_url, current_path)
+        return redirect(target_url, code=302)
 
     elif data['type'] == 'directory':
         # 计算面包屑导航
