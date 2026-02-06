@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file, Response, jsonify
-from database import init_db, get_all_targets, get_target_by_id, get_targets_paginated, get_status_counts, update_target_note, update_target_status_only
+from database import init_db, get_all_targets, get_target_by_id, get_targets_paginated, get_status_counts, update_target_note, update_target_status_only, update_target_favorite
 from scanner import process_csv, import_all_csv_files, scan_pending_targets
 from file_ops import get_remote_content, recursive_zip_download, build_remote_url
 
@@ -135,6 +135,29 @@ def update_note_route(target_id):
 def archive_target_route(target_id):
     """归档站点（状态更新为 Archived）"""
     update_target_status_only(target_id, 'Archived')
+
+    page = request.form.get('page', '1')
+    status = request.form.get('status', 'Vulnerable')
+    search = request.form.get('search', '')
+    return redirect(url_for('index', page=page, status=status, search=search))
+
+
+@app.route('/targets/<int:target_id>/unarchive', methods=['POST'])
+def unarchive_target_route(target_id):
+    """取消归档，状态改为待检查"""
+    update_target_status_only(target_id, 'Pending')
+
+    page = request.form.get('page', '1')
+    status = request.form.get('status', 'Vulnerable')
+    search = request.form.get('search', '')
+    return redirect(url_for('index', page=page, status=status, search=search))
+
+
+@app.route('/targets/<int:target_id>/favorite', methods=['POST'])
+def favorite_target_route(target_id):
+    """更新收藏状态"""
+    favorite = request.form.get('favorite', '0') == '1'
+    update_target_favorite(target_id, favorite)
 
     page = request.form.get('page', '1')
     status = request.form.get('status', 'Vulnerable')

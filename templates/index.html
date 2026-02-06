@@ -72,6 +72,10 @@
                     <h3 class="mb-0 text-secondary" id="stat-archived">{{ status_counts.get('Archived', 0) }}</h3>
                     <small class="text-muted">归档</small>
                 </div>
+                <div class="col">
+                    <h3 class="mb-0 text-warning" id="stat-favorite">{{ status_counts.get('favorite', 0) }}</h3>
+                    <small class="text-muted">收藏</small>
+                </div>
             </div>
             <div class="text-center mt-2">
                 <small class="text-muted">
@@ -95,6 +99,7 @@
                         <option value="Pending" {{ 'selected' if current_status == 'Pending' else '' }}>待检查</option>
                         <option value="Error" {{ 'selected' if current_status == 'Error' else '' }}>错误</option>
                         <option value="Archived" {{ 'selected' if current_status == 'Archived' else '' }}>归档</option>
+                        <option value="Favorite" {{ 'selected' if current_status == 'Favorite' else '' }}>收藏</option>
                     </select>
                 </div>
                 <div class="col-md-6">
@@ -129,8 +134,9 @@
                             <th style="width: 150px;">IP</th>
                             <th style="width: 80px;">端口</th>
                             <th style="width: 100px;">状态</th>
+                            <th style="width: 80px;">收藏</th>
                             <th style="width: 240px;">备注</th>
-                            <th style="width: 180px;">操作</th>
+                            <th style="width: 220px;">操作</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -210,6 +216,13 @@
                                     <span class="badge bg-dark">错误</span>
                                 {% endif %}
                             </td>
+                            <td class="text-center">
+                                {% if t.favorite %}
+                                    <span class="text-warning fs-5" title="已收藏">★</span>
+                                {% else %}
+                                    <span class="text-muted fs-5" title="未收藏">☆</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 <form method="post" action="/targets/{{ t.id }}/note" class="d-flex gap-1">
                                     <input type="hidden" name="page" value="{{ pagination.page }}">
@@ -231,6 +244,16 @@
                                     <button class="btn btn-sm btn-secondary" disabled>不可达</button>
                                     {% endif %}
 
+                                    <form method="post" action="/targets/{{ t.id }}/favorite">
+                                        <input type="hidden" name="page" value="{{ pagination.page }}">
+                                        <input type="hidden" name="status" value="{{ current_status }}">
+                                        <input type="hidden" name="search" value="{{ search_query }}">
+                                        <input type="hidden" name="favorite" value="{{ '0' if t.favorite else '1' }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning">
+                                            {{ '取消收藏' if t.favorite else '收藏' }}
+                                        </button>
+                                    </form>
+
                                     {% if t.status != 'Archived' %}
                                     <form method="post" action="/targets/{{ t.id }}/archive" onsubmit="return confirm('确认归档该站点？');">
                                         <input type="hidden" name="page" value="{{ pagination.page }}">
@@ -239,7 +262,12 @@
                                         <button type="submit" class="btn btn-sm btn-outline-secondary">归档</button>
                                     </form>
                                     {% else %}
-                                    <button class="btn btn-sm btn-outline-secondary" disabled>已归档</button>
+                                    <form method="post" action="/targets/{{ t.id }}/unarchive" onsubmit="return confirm('确认取消归档并设为待检查？');">
+                                        <input type="hidden" name="page" value="{{ pagination.page }}">
+                                        <input type="hidden" name="status" value="{{ current_status }}">
+                                        <input type="hidden" name="search" value="{{ search_query }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-success">取消归档</button>
+                                    </form>
                                     {% endif %}
                                 </div>
                             </td>
@@ -417,6 +445,7 @@ async function updateStats() {
         updateStatWithAnimation('stat-pending', stats.Pending || 0);
         updateStatWithAnimation('stat-error', stats.Error || 0);
         updateStatWithAnimation('stat-archived', stats.Archived || 0);
+        updateStatWithAnimation('stat-favorite', stats.favorite || 0);
         
         // 更新时间
         lastUpdateTime = Date.now();
