@@ -44,6 +44,7 @@ def get_file_icon(filename):
 # 注册为模板函数
 app.jinja_env.globals.update(get_flag_emoji=get_flag_emoji)
 app.jinja_env.globals.update(get_file_icon=get_file_icon)
+app.jinja_env.globals.update(build_remote_url=build_remote_url)
 
 
 @app.route('/')
@@ -126,10 +127,16 @@ def explore(target_id):
     current_path = request.args.get('path', '/')
     base_url = target['base_url']
 
+    # 对文件查看/下载请求直接 302，避免先探测远端内容导致额外等待
+    action = request.args.get('action')
+    if action in ('view', 'download'):
+        target_url = build_remote_url(base_url, current_path)
+        return redirect(target_url, code=302)
+
     data = get_remote_content(base_url, current_path)
 
     if data['type'] == 'file':
-        # 文件预览和下载不再代理，直接 302 跳转到远端 URL
+        # 兜底：如果直接访问到文件，也执行 302 跳转
         target_url = build_remote_url(base_url, current_path)
         return redirect(target_url, code=302)
 
