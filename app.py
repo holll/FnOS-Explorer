@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file, Response, jsonify
-from database import init_db, get_all_targets, get_target_by_id, get_targets_paginated, get_status_counts
+from database import init_db, get_all_targets, get_target_by_id, get_targets_paginated, get_status_counts, update_target_note, update_target_status_only
 from scanner import process_csv, import_all_csv_files, scan_pending_targets
 from file_ops import get_remote_content, recursive_zip_download, build_remote_url
 
@@ -114,6 +114,32 @@ def get_stats():
     """获取统计数据 API"""
     status_counts = get_status_counts()
     return jsonify(status_counts)
+
+
+@app.route('/targets/<int:target_id>/note', methods=['POST'])
+def update_note_route(target_id):
+    """更新站点备注"""
+    note = request.form.get('note', '').strip()
+    if len(note) > 500:
+        note = note[:500]
+    update_target_note(target_id, note)
+
+    # 保持当前筛选分页参数
+    page = request.form.get('page', '1')
+    status = request.form.get('status', 'Vulnerable')
+    search = request.form.get('search', '')
+    return redirect(url_for('index', page=page, status=status, search=search))
+
+
+@app.route('/targets/<int:target_id>/archive', methods=['POST'])
+def archive_target_route(target_id):
+    """归档站点（状态更新为 Archived）"""
+    update_target_status_only(target_id, 'Archived')
+
+    page = request.form.get('page', '1')
+    status = request.form.get('status', 'Vulnerable')
+    search = request.form.get('search', '')
+    return redirect(url_for('index', page=page, status=status, search=search))
 
 
 @app.route('/explore/<int:target_id>')
