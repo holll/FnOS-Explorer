@@ -17,10 +17,17 @@ def init_db():
             country TEXT,          -- 国家代码，如 CN, US
             region TEXT,           -- 省份/州，如 广东省, California
             city TEXT,             -- 城市，如 Dongguan, Brea
-            status TEXT,           -- 'Vulnerable', 'Safe', 'Pending', 'Error'
-            root_content TEXT      -- 根目录的 HTML 响应快照
+            status TEXT,           -- 'Vulnerable', 'Safe', 'Pending', 'Error', 'Archived'
+            root_content TEXT,     -- 根目录的 HTML 响应快照
+            note TEXT DEFAULT ''   -- 备注
         )
     ''')
+
+    # 兼容旧库：补充 note 字段
+    cursor.execute("PRAGMA table_info(targets)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if 'note' not in columns:
+        cursor.execute("ALTER TABLE targets ADD COLUMN note TEXT DEFAULT ''")
     conn.commit()
     conn.close()
 
@@ -77,6 +84,36 @@ def update_target_status(target_id, status, root_content):
         conn.commit()
     except Exception as e:
         print(f"DB Update Error: {e}")
+    finally:
+        conn.close()
+
+
+def update_target_status_only(target_id, status):
+    """仅更新目标状态"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE targets SET status = ? WHERE id = ?
+        ''', (status, target_id))
+        conn.commit()
+    except Exception as e:
+        print(f"DB Update Status Error: {e}")
+    finally:
+        conn.close()
+
+
+def update_target_note(target_id, note):
+    """更新目标备注"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE targets SET note = ? WHERE id = ?
+        ''', (note, target_id))
+        conn.commit()
+    except Exception as e:
+        print(f"DB Update Note Error: {e}")
     finally:
         conn.close()
 

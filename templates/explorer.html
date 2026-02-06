@@ -84,7 +84,7 @@
                         {% else %}
                             <span class="fs-4 me-3">{{ get_file_icon(item.name) }}</span>
                             <a href="javascript:void(0)" 
-                               onclick="previewFile('{{ target.id }}', '{{ current_path.rstrip('/') }}/{{ item.href }}', '{{ item.name }}')"
+                               onclick="previewFile('{{ target.id }}', '{{ current_path.rstrip('/') }}/{{ item.href }}', '{{ item.name }}', {{ build_remote_url(target.base_url, (current_path.rstrip('/') ~ '/' ~ item.href))|tojson }})"
                                class="text-decoration-none text-secondary">
                                 {{ item.name }}
                             </a>
@@ -99,7 +99,7 @@
                            title="在新窗口打开">
                             <i class="bi bi-box-arrow-up-right"></i> 新窗口
                         </a>
-                        <button onclick="previewFile('{{ target.id }}', '{{ current_path.rstrip('/') }}/{{ item.href }}', '{{ item.name }}')" 
+                        <button onclick="previewFile('{{ target.id }}', '{{ current_path.rstrip('/') }}/{{ item.href }}', '{{ item.name }}', {{ build_remote_url(target.base_url, (current_path.rstrip('/') ~ '/' ~ item.href))|tojson }})" 
                                 class="btn btn-sm btn-outline-info">
                             <i class="bi bi-eye"></i> 预览
                         </button>
@@ -107,6 +107,12 @@
                            class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-download"></i> 下载
                         </a>
+                        <button type="button"
+                                onclick='copyDirectLink({{ build_remote_url(target.base_url, (current_path.rstrip('/') ~ '/' ~ item.href))|tojson }})'
+                                class="btn btn-sm btn-outline-dark"
+                                title="复制直联地址">
+                            <i class="bi bi-link-45deg"></i> 复制直联
+                        </button>
                     </div>
                     {% endif %}
                 </div>
@@ -137,6 +143,9 @@
                 <a id="downloadBtn" href="#" class="btn btn-primary">
                     <i class="bi bi-download"></i> 下载文件
                 </a>
+                <button type="button" id="copyDirectBtn" class="btn btn-outline-dark">
+                    <i class="bi bi-link-45deg"></i> 复制直联
+                </button>
             </div>
         </div>
     </div>
@@ -199,7 +208,7 @@ function isTextFile(filename) {
     return textExts.includes(getFileExtension(filename));
 }
 
-async function previewFile(targetId, filePath, filename) {
+async function previewFile(targetId, filePath, filename, directUrl) {
     console.log('Preview file:', targetId, filePath, filename);
     
     if (!previewModal) {
@@ -211,10 +220,12 @@ async function previewFile(targetId, filePath, filename) {
     const modalTitle = document.getElementById('previewModalTitle');
     const modalBody = document.getElementById('previewModalBody');
     const downloadBtn = document.getElementById('downloadBtn');
+    const copyDirectBtn = document.getElementById('copyDirectBtn');
     
     // 设置标题和下载链接
     modalTitle.textContent = filename;
     downloadBtn.href = `/explore/${targetId}?path=${filePath}&action=download`;
+    copyDirectBtn.onclick = () => copyDirectLink(directUrl);
     
     // 显示加载状态
     modalBody.innerHTML = `
@@ -272,6 +283,23 @@ async function previewFile(targetId, filePath, filename) {
                 <i class="bi bi-exclamation-triangle"></i> 加载失败: ${error.message}
             </div>
         `;
+    }
+}
+
+async function copyDirectLink(url) {
+    const absoluteUrl = new URL(url, window.location.origin).href;
+    try {
+        await navigator.clipboard.writeText(absoluteUrl);
+        alert('直联地址已复制到剪贴板');
+    } catch (error) {
+        // fallback
+        const input = document.createElement('input');
+        input.value = absoluteUrl;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        alert('直联地址已复制到剪贴板');
     }
 }
 
