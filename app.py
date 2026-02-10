@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file, Response, jsonify
-from database import init_db, get_all_targets, get_target_by_id, get_targets_paginated, get_status_counts, update_target_note, update_target_status_only, update_target_favorite
+from database import init_db, get_all_targets, get_target_by_id, get_targets_paginated, get_status_counts, update_target_note, update_target_status_only, update_target_status_by_ip, update_target_favorite
 from scanner import process_csv, import_all_csv_files, scan_pending_targets
 from file_ops import get_remote_content, recursive_zip_download, build_remote_url
 
@@ -133,8 +133,12 @@ def update_note_route(target_id):
 
 @app.route('/targets/<int:target_id>/archive', methods=['POST'])
 def archive_target_route(target_id):
-    """归档站点（状态更新为 Archived）"""
-    update_target_status_only(target_id, 'Archived')
+    """归档站点（同 IP 站点一起归档）"""
+    target = get_target_by_id(target_id)
+    if target and target['ip']:
+        update_target_status_by_ip(target['ip'], 'Archived')
+    else:
+        update_target_status_only(target_id, 'Archived')
 
     page = request.form.get('page', '1')
     status = request.form.get('status', 'Vulnerable')

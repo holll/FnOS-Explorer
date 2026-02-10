@@ -106,6 +106,21 @@ def update_target_status_only(target_id, status):
         conn.close()
 
 
+def update_target_status_by_ip(ip, status):
+    """按 IP 批量更新目标状态"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE targets SET status = ? WHERE ip = ?
+        ''', (status, ip))
+        conn.commit()
+    except Exception as e:
+        print(f"DB Update Status By IP Error: {e}")
+    finally:
+        conn.close()
+
+
 def update_target_note(target_id, note):
     """更新目标备注"""
     conn = sqlite3.connect(DB_PATH)
